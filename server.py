@@ -150,8 +150,17 @@ async def extract_metadata(req: MetadataRequest):
     }
 
     try:
+        # Intento 1: Cliente web
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            try:
+                info = ydl.extract_info(url, download=False)
+            except Exception as e:
+                log.warning("Web client failed: %s. Trying mobile fallback...", e)
+                # Intento 2: Fallback a mobile (Android/iOS) que evade mejor los bots
+                opts["extractor_args"] = {"youtube": ["player_client=android,ios"]}
+                with yt_dlp.YoutubeDL(opts) as ydl_mobile:
+                    info = ydl_mobile.extract_info(url, download=False)
+
             if info is None:
                 raise HTTPException(status_code=400, detail="No se obtuvo información del contenido.")
 
