@@ -139,6 +139,13 @@ async def startup_event():
 async def extract_metadata(req: MetadataRequest):
     """Extract video/audio metadata without downloading."""
     url = _strip_playlist(req.url)
+    
+    # Manejo de cookies desde variable de entorno (Render Secret)
+    cookie_content = os.environ.get("YT_COOKIES")
+    cookie_path = None
+    if cookie_content:
+        cookie_path = Path("/tmp/cookies.txt")
+        cookie_path.write_text(cookie_content)
 
     opts: dict[str, Any] = {
         "quiet": True,
@@ -146,20 +153,23 @@ async def extract_metadata(req: MetadataRequest):
         "skip_download": True,
         "ignoreerrors": False,
         "noplaylist": True,
-        "extractor_args": {"youtube": ["player_client=ios,android,web"]},
+        "extractor_args": {"youtube": ["player_client=android,ios"]},
     }
+    
+    if cookie_path:
+        opts["cookiefile"] = str(cookie_path)
 
     try:
-        # Intento 1: Cliente web
+        # Intento 1: Clientes móviles por defecto
         with yt_dlp.YoutubeDL(opts) as ydl:
             try:
                 info = ydl.extract_info(url, download=False)
             except Exception as e:
-                log.warning("Web client failed: %s. Trying mobile fallback...", e)
-                # Intento 2: Fallback a mobile (Android/iOS) que evade mejor los bots
-                opts["extractor_args"] = {"youtube": ["player_client=android,ios"]}
-                with yt_dlp.YoutubeDL(opts) as ydl_mobile:
-                    info = ydl_mobile.extract_info(url, download=False)
+                log.warning("Web/Mobile clients failed: %s. Trying TV fallback...", e)
+                # Intento 2: Fallback a TV/Creator que a veces tiene menos restricciones
+                opts["extractor_args"] = {"youtube": ["player_client=tv,creator,web"]}
+                with yt_dlp.YoutubeDL(opts) as ydl_tv:
+                    info = ydl_tv.extract_info(url, download=False)
 
             if info is None:
                 raise HTTPException(status_code=400, detail="No se obtuvo información del contenido.")
