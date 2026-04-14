@@ -91,6 +91,7 @@ _ERROR_KEYWORDS: list[tuple[str, str]] = [
     ("No video formats found", "No se encontraron formatos de video disponibles."),
     ("Requested format is not available", "El formato solicitado no está disponible."),
     ("Unsupported URL", "La URL proporcionada no es compatible."),
+    ("age-restricted", "Este video tiene restricción de edad. YouTube requiere iniciar sesión para acceder a él."),
 ]
 
 
@@ -99,7 +100,7 @@ def _translate_error(exc: Exception) -> str:
     for keyword, friendly in _ERROR_KEYWORDS:
         if keyword.lower() in msg:
             return friendly
-    return "Ocurrió un error inesperado. Intentá de nuevo."
+    return f"Ocurrió un error inesperado al procesar el video: {msg[:100]}"
 
 
 # ── Helper: Clean YouTube Playlist Params ────────────────────
@@ -115,6 +116,19 @@ def _strip_playlist(url: str) -> str:
     except Exception:
         pass
     return url
+
+
+# ══════════════════════════════════════════════════════════════
+#  APP STARTUP (FFmpeg Path)
+# ══════════════════════════════════════════════════════════════
+
+@app.on_event("startup")
+async def startup_event():
+    # Asegurarnos que el binario de FFmpeg esté en el PATH de Render
+    ffmpeg_bin = Path(__file__).parent / "bin"
+    if ffmpeg_bin.exists():
+        os.environ["PATH"] = f"{ffmpeg_bin}{os.pathsep}{os.environ.get('PATH', '')}"
+        log.info("FFmpeg bin directory added to PATH: %s", ffmpeg_bin)
 
 
 # ══════════════════════════════════════════════════════════════
